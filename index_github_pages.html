@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gestion des Exclusions — PWA (GitHub Pages)</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2563eb">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:linear-gradient(135deg,#667eea,#764ba2);min-height:100vh;color:#333}
+  .container{max-width:1150px;margin:0 auto;padding:20px}
+  .header{text-align:center;margin-bottom:20px;color:#fff}
+  .header h1{font-size:1.8rem;margin-bottom:8px;text-shadow:2px 2px 4px rgba(0,0,0,.3)}
+  .topbar{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+  .year{background:#ffffffdd;border-radius:10px;padding:6px 10px}
+  .navigation{display:flex;justify-content:center;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+  .nav-btn{background:rgba(255,255,255,.92);border:none;padding:10px 18px;border-radius:20px;cursor:pointer;font-weight:600}
+  .nav-btn.active{background:#2563eb;color:#fff}
+  .section{display:none;background:rgba(255,255,255,.96);border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 8px 28px rgba(0,0,0,.08)}
+  .section.active{display:block}
+  .form-group{margin-bottom:12px}
+  .form-group label{display:block;margin-bottom:6px;font-weight:600;color:#374151}
+  .form-group input,.form-group select,.form-group textarea{width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:15px}
+  .btn{background:#2563eb;color:#fff;border:none;padding:10px 16px;border-radius:10px;cursor:pointer;font-weight:600;margin-right:6px}
+  .btn-danger{background:#dc2626}
+  .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:16px}
+  .stat-card{background:linear-gradient(135deg,#f8fafc,#e2e8f0);padding:14px;border-radius:12px;text-align:center;border:1px solid #e2e8f0}
+  .chart-container{margin-top:12px;background:#fff;padding:14px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.08)}
+  .two-column{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media (max-width:768px){.two-column{grid-template-columns:1fr} .container{padding:14px}}
+  .legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:#374151;background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;padding:4px 8px}
+  .legend-swatch{width:10px;height:10px;border-radius:2px}
+  .google-drive-status{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}
+  .sync-indicator{width:10px;height:10px;border-radius:50%;background:#ef4444}
+  .sync-indicator.connected{background:#10b981}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>📚 Gestion des Exclusions (PWA GitHub Pages)</h1>
+    <p>Saisie, stats, graphes, export CSV & synchro Google Sheets</p>
+  </div>
+
+  <div class="topbar">
+    <div class="year">Année scolaire : 
+      <select id="anneeSelect" onchange="changeYear()"></select>
+      <button class="btn" onclick="createPrevNextYear(-1)">⟵</button>
+      <button class="btn" onclick="createPrevNextYear(1)">⟶</button>
+    </div>
+  </div>
+
+  <div class="navigation">
+    <button class="nav-btn active" onclick="showSection('saisie', this)">➕ Saisie</button>
+    <button class="nav-btn" onclick="showSection('statistiques', this)">📊 Statistiques</button>
+    <button class="nav-btn" onclick="showSection('graphiques', this)">📈 Graphiques</button>
+    <button class="nav-btn" onclick="showSection('donnees', this)">📋 Données</button>
+    <button class="nav-btn" onclick="showSection('parametres', this)">⚙️ Paramètres</button>
+  </div>
+
+  <div id="saisie" class="section active">
+    <div class="form-group"><label>Nom de l'élève *</label><input id="nomEleve"></div>
+    <div class="two-column">
+      <div class="form-group"><label>Classe *</label><input id="classe" placeholder="ex: 3ème A, 1ère S1"></div>
+      <div class="form-group"><label>Motif *</label><select id="motif"><option value="">Sélectionner un motif</option></select></div>
+    </div>
+    <div class="form-group"><label>Ou nouveau motif</label><input id="nouveauMotif" placeholder="Nouveau motif..."></div>
+    <div class="two-column">
+      <div class="form-group"><label>Professeur *</label><input id="professeur"></div>
+      <div class="form-group"><label>Matière</label><input id="matiere" placeholder="ex: Mathématiques"></div>
+    </div>
+    <div class="two-column">
+      <div class="form-group"><label>Date *</label><input type="date" id="dateExclusion"></div>
+      <div class="form-group"><label>Heure *</label><input type="time" id="heureExclusion"></div>
+    </div>
+    <div class="form-group"><label>Commentaire</label><textarea id="commentaire" rows="2"></textarea></div>
+    <button class="btn" onclick="save()">💾 Enregistrer</button>
+  </div>
+
+  <div id="statistiques" class="section">
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      <select id="periodeFilter">
+        <option value="jour">Aujourd'hui</option>
+        <option value="semaine">Cette semaine</option>
+        <option value="mois">Ce mois</option>
+        <option value="annee">Cette année civile</option>
+        <option value="anneeScolaire">Année scolaire</option>
+        <option value="tout">Toutes (jusqu’à aujourd’hui)</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:6px;font-size:14px"><input type="checkbox" id="includeFuture"> Inclure les dates futures</label>
+      <button class="btn" onclick="updateStatistics()">Actualiser</button>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card"><div id="totalExclusions" style="font-size:1.6rem;color:#2563eb">0</div><div>Total exclusions</div></div>
+      <div class="stat-card"><div id="totalEleves" style="font-size:1.6rem;color:#2563eb">0</div><div>Élèves concernés</div></div>
+      <div class="stat-card"><div id="totalProfesseurs" style="font-size:1.6rem;color:#2563eb">0</div><div>Professeurs impliqués</div></div>
+      <div class="stat-card"><div id="motifPrincipal" style="font-size:1.2rem;color:#2563eb">-</div><div>Motif principal</div></div>
+    </div>
+    <div id="detailedStats"></div>
+  </div>
+
+  <div id="graphiques" class="section">
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      <select id="graphPeriodeFilter">
+        <option value="mois">Ce mois</option>
+        <option value="anneeScolaire">Année scolaire</option>
+        <option value="tout">Toutes (jusqu’à aujourd’hui)</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:6px;font-size:14px"><input type="checkbox" id="includeFutureCharts"> Inclure les dates futures</label>
+      <button class="btn" onclick="updateCharts()">Actualiser</button>
+    </div>
+    <div class="chart-container">
+      <h3>Motifs</h3>
+      <canvas id="motifChart" width="900" height="280"></canvas>
+      <div id="motifLegend" class="legend"></div>
+    </div>
+    <div class="chart-container">
+      <h3>Évolution</h3>
+      <canvas id="timeChart" width="900" height="280"></canvas>
+    </div>
+    <div class="chart-container">
+      <h3>Par professeur</h3>
+      <canvas id="professeurChart" width="900" height="280"></canvas>
+    </div>
+  </div>
+
+  <div id="donnees" class="section">
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      <input id="searchFilter" placeholder="🔍 Rechercher..." style="flex:1">
+      <select id="classFilter"><option value="">Toutes</option></select>
+      <select id="motifFilterData"><option value="">Tous</option></select>
+      <button class="btn" onclick="exportData()">📥 Export JSON</button>
+      <button class="btn" onclick="exportCSV()">📄 Export CSV</button>
+    </div>
+    <table style="width:100%">
+      <thead><tr><th>Année scolaire</th><th>Date</th><th>Heure</th><th>Élève</th><th>Classe</th><th>Motif</th><th>Professeur</th><th>Action</th></tr></thead>
+      <tbody id="dataTableBody"></tbody>
+    </table>
+  </div>
+
+  <div id="parametres" class="section">
+    <h3>Motifs</h3>
+    <div style="display:flex;gap:8px;margin:8px 0">
+      <input id="newMotifInput" placeholder="Nouveau motif..." style="flex:1">
+      <button class="btn" onclick="addMotif()">Ajouter</button>
+    </div>
+    <div id="motifList" class="legend"></div>
+
+    <h3 style="margin-top:16px">Synchronisation (Apps Script — POST text/plain JSON)</h3>
+    <div class="google-drive-status">
+      <div class="sync-indicator" id="syncIndicator"></div>
+      <span id="syncStatus">Endpoint: Non configuré</span>
+      <input id="webAppUrl" placeholder="https://script.google.com/macros/s/......../exec" style="flex:1;padding:8px;border:1px solid #e5e7eb;border-radius:8px">
+      <button class="btn" onclick="saveWebAppUrl()">Enregistrer</button>
+      <button class="btn" onclick="testSync()">Tester</button>
+    </div>
+    <h3 style="margin-top:16px;color:#dc2626">Remise à zéro (année en cours)</h3>
+    <button class="btn-danger btn" onclick="resetYear()">🗑️ Vider l'année affichée</button>
+  </div>
+</div>
+
+<script>
+  // Enregistrement du Service Worker (si présent sur Pages, https://)
+  if (location.protocol.indexOf('http') === 0 && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./service-worker.js').catch(function(){});
+  }
+
+  function jsonParseSafe(v, fb){ try { return JSON.parse(v); } catch(e) { return fb; } }
+  function setText(id, txt){ var el = document.getElementById(id); if(el) el.textContent = txt; }
+  function getVal(id){ var el=document.getElementById(id); return el ? (el.value||'').trim() : ''; }
+
+  // Années scolaires
+  function computeAnneeScolaireFromDateStr(isoDate){
+    if(!isoDate) return currentAnneeScolaire();
+    var d=new Date(isoDate+'T00:00:00');
+    var y=d.getFullYear(), m=d.getMonth()+1;
+    return (m>=9) ? (y+'-'+(y+1)) : ((y-1)+'-'+y);
+  }
+  function currentAnneeScolaire(){
+    var d=new Date(); var y=d.getFullYear(), m=d.getMonth()+1;
+    return (m>=9) ? (y+'-'+(y+1)) : ((y-1)+'-'+y);
+  }
+
+  var DEFAULT_MOTIFS=['Perturbation du cours','Retard répété','Devoir non fait','Bavardage excessif','Insolence','Utilisation du téléphone','Matériel oublié'];
+  var motifs=jsonParseSafe(localStorage.getItem('motifs'), DEFAULT_MOTIFS.slice());
+  if(!motifs||!motifs.length) motifs=DEFAULT_MOTIFS.slice();
+
+  var exclusions=jsonParseSafe(localStorage.getItem('exclusions'), []);
+  var anneeCourante = localStorage.getItem('anneeCourante') || currentAnneeScolaire();
+  function persist(){ localStorage.setItem('exclusions', JSON.stringify(exclusions)); }
+
+  function ensureYearsInSelector(){
+    var yearsSet={}, i;
+    for(i=0;i<exclusions.length;i++) yearsSet[exclusions[i].anneeScolaire]=1;
+    yearsSet[currentAnneeScolaire()]=1;
+    yearsSet[anneeCourante]=1;
+    var years=Object.keys(yearsSet).sort();
+    var sel=document.getElementById('anneeSelect'); sel.innerHTML='';
+    for(i=0;i<years.length;i++){ var o=document.createElement('option'); o.value=years[i]; o.textContent=years[i]; sel.appendChild(o); }
+    sel.value=anneeCourante;
+  }
+  function changeYear(){ anneeCourante=getVal('anneeSelect'); localStorage.setItem('anneeCourante', anneeCourante); var sf=document.getElementById('searchFilter'); if(sf) sf.value=''; updateAll(); }
+  function createPrevNextYear(delta){
+    var a=anneeCourante.split('-'); var start=parseInt(a[0],10)+delta, end=start+1;
+    var y=start+'-'+end; if(getVal('anneeSelect')!==y){ var sel=document.getElementById('anneeSelect'); var o=document.createElement('option'); o.value=y; o.textContent=y; sel.appendChild(o); }
+    anneeCourante=y; localStorage.setItem('anneeCourante', y); document.getElementById('anneeSelect').value=y; var sf=document.getElementById('searchFilter'); if(sf) sf.value=''; updateAll();
+  }
+
+  function showSection(id,btn){
+    var secs=document.querySelectorAll('.section'); for(var i=0;i<secs.length;i++) secs[i].classList.remove('active');
+    var btns=document.querySelectorAll('.nav-btn'); for(var j=0;j<btns.length;j++) btns[j].classList.remove('active');
+    var s=document.getElementById(id); if(s) s.classList.add('active'); if(btn) btn.classList.add('active');
+  }
+
+  function loadMotifs(){
+    var sel=document.getElementById('motif'); sel.innerHTML='<option value=\"\">Sélectionner un motif</option>';
+    for(var i=0;i<motifs.length;i++){ var o=document.createElement('option'); o.value=motifs[i]; o.textContent=motifs[i]; sel.appendChild(o); }
+    updateMotifList();
+  }
+  function addMotif(){
+    var v=getVal('newMotifInput'); if(v && motifs.indexOf(v)===-1){ motifs.push(v); localStorage.setItem('motifs', JSON.stringify(motifs)); loadMotifs(); updateMotifFilter(); document.getElementById('newMotifInput').value=''; }
+  }
+  function removeMotif(m){
+    if(!confirm('Supprimer le motif \"'+m+'\" ?')) return;
+    var i=motifs.indexOf(m); if(i>-1) motifs.splice(i,1);
+    localStorage.setItem('motifs', JSON.stringify(motifs));
+    loadMotifs(); updateMotifFilter();
+  }
+  function updateMotifList(){
+    var list=document.getElementById('motifList'); list.innerHTML='';
+    for(var i=0;i<motifs.length;i++){
+      var d=document.createElement('div'); d.className='legend-item';
+      var span=document.createElement('span'); span.textContent=motifs[i];
+      var btn=document.createElement('button'); btn.className='btn btn-danger'; btn.style.padding='4px 8px'; btn.textContent='Supprimer';
+      btn.onclick=(function(m){ return function(){ removeMotif(m); }; })(motifs[i]);
+      d.appendChild(span); d.appendChild(btn); list.appendChild(d);
+    }
+  }
+
+  function setDefaultDateTime(){ var now=new Date(); var d=document.getElementById('dateExclusion'); if(d) d.value=now.toISOString().split('T')[0]; var t=document.getElementById('heureExclusion'); if(t) t.value=now.toTimeString().slice(0,5); }
+  function save(){
+    var d={
+      id: Date.now(),
+      nomEleve: getVal('nomEleve'),
+      classe: getVal('classe'),
+      motif: (getVal('nouveauMotif') || getVal('motif')),
+      professeur: getVal('professeur'),
+      matiere: getVal('matiere'),
+      date: getVal('dateExclusion'),
+      heure: getVal('heureExclusion'),
+      commentaire: getVal('commentaire'),
+      timestamp: new Date().toISOString()
+    };
+    if(!d.nomEleve||!d.classe||!d.motif||!d.professeur||!d.date||!d.heure){ alert('Champs obligatoires manquants.'); return; }
+    d.anneeScolaire = computeAnneeScolaireFromDateStr(d.date);
+    if(getVal('nouveauMotif') && motifs.indexOf(getVal('nouveauMotif'))===-1){ motifs.push(getVal('nouveauMotif')); localStorage.setItem('motifs', JSON.stringify(motifs)); loadMotifs(); }
+    exclusions.push(d); persist();
+    // Auto-switch vers l'année scolaire de la saisie
+    anneeCourante = d.anneeScolaire; localStorage.setItem('anneeCourante', anneeCourante);
+    alert('✅ Exclusion enregistrée !');
+    setDefaultDateTime(); clearForm();
+    ensureYearsInSelector();
+    var sel = document.getElementById('anneeSelect'); if(sel) sel.value = anneeCourante;
+    var sf=document.getElementById('searchFilter'); if(sf) sf.value='';
+    updateAll();
+    syncAppend([d]);
+  }
+  function clearForm(){
+    var ids=['nomEleve','classe','motif','nouveauMotif','professeur','matiere','commentaire'];
+    for(var i=0;i<ids.length;i++){ var el=document.getElementById(ids[i]); if(!el) continue; if(el.tagName==='SELECT') el.selectedIndex=0; else el.value=''; }
+  }
+
+  function filteredByYear(arr){ var out=[]; for(var i=0;i<arr.length;i++){ if(arr[i].anneeScolaire===anneeCourante) out.push(arr[i]); } return out; }
+
+  function updateStatistics(){
+    var p=document.getElementById('periodeFilter').value;
+    var base = filteredByYear(exclusions);
+    var data = filterDataByPeriod(base, p);
+    setText('totalExclusions', data.length);
+    var se={}, sp={}; for(var i=0;i<data.length;i++){ se[data[i].nomEleve]=1; sp[data[i].professeur]=1; }
+    setText('totalEleves', Object.keys(se).length); setText('totalProfesseurs', Object.keys(sp).length);
+    var c={},top='-',max=0; for(var j=0;j<data.length;j++){ c[data[j].motif]=(c[data[j].motif]||0)+1; if(c[data[j].motif]>max){max=c[data[j].motif]; top=data[j].motif;} }
+    setText('motifPrincipal', top);
+    updateDetailedStats(data);
+  }
+  function updateDetailedStats(data){
+    var c=document.getElementById('detailedStats');
+    var e={},p={},m={}; for(var i=0;i<data.length;i++){ var x=data[i]; if(!e[x.nomEleve]) e[x.nomEleve]={count:0,classe:x.classe}; e[x.nomEleve].count++; if(!p[x.professeur]) p[x.professeur]={count:0}; p[x.professeur].count++; m[x.motif]=(m[x.motif]||0)+1; }
+    function topList(obj,n,withClasse){ var arr=[]; for(var k in obj) arr.push([k,obj[k]]); arr.sort(function(a,b){return (b[1].count||b[1])-(a[1].count||a[1])}); arr=arr.slice(0,n); var s=''; for(var i=0;i<arr.length;i++){ var name=arr[i][0], val=arr[i][1], count=val.count||val, cls=(withClasse&&val.classe)?' ('+val.classe+')':''; s+='<p>'+name+cls+' : '+count+'</p>'; } return s||'<p>—</p>'; }
+    var s = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:12px">'
+      + '<div class="stat-card"><h4>Top 5 élèves</h4>'+topList(e,5,true)+'</div>'
+      + '<div class="stat-card"><h4>Top 5 professeurs</h4>'+topList(p,5,false)+'</div>'
+      + '<div class="stat-card"><h4>Motifs fréquents</h4>'+topList(m,5,false)+'</div>'
+      + '</div>';
+    c.innerHTML=s;
+  }
+  function filterDataByPeriod(data,p){
+    // Restreindre à l'année scolaire sélectionnée
+    var onlyYear=[]; for(var _i=0;_i<data.length;_i++){ if(data[_i].anneeScolaire===anneeCourante) onlyYear.push(data[_i]); }
+    data = onlyYear;
+    var now=new Date();
+    var today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+    // Semaine Lundi→Dimanche
+    var monday=new Date(today);
+    var day=(today.getDay()+6)%7; // 0=Mon..6=Sun
+    monday.setDate(today.getDate()-day);
+    monday.setHours(0,0,0,0);
+    var sunday=new Date(monday); sunday.setDate(monday.getDate()+6); sunday.setHours(23,59,59,999);
+
+    var allowFuture = (document.getElementById('includeFuture') && document.getElementById('includeFuture').checked);
+    var out=[], i;
+    for(i=0;i<data.length;i++){
+      var d=new Date(data[i].date+'T00:00:00'); // date de l'incident (pas date de saisie)
+      if (!allowFuture && d>today) continue; // pas de futur si non coché
+      if (p==='jour') {
+        if (d.getTime()===today.getTime()) out.push(data[i]);
+      } else if (p==='semaine') {
+        if (d>=monday && d<=sunday) out.push(data[i]);
+      } else if (p==='mois') {
+        if (d.getMonth()===today.getMonth() && d.getFullYear()===today.getFullYear()) out.push(data[i]);
+      } else if (p==='annee') {
+        if (d.getFullYear()===today.getFullYear()) out.push(data[i]);
+      } else if (p==='anneeScolaire' || p==='tout') {
+        out.push(data[i]);
+      }
+    }
+    return out;
+  }
+
+  // Charts sans librairie externe
+  var COLORS=['#2563eb','#dc2626','#059669','#d97706','#7c3aed','#db2777','#0891b2','#65a30d','#0ea5e9','#ef4444','#10b981','#f59e0b'];
+  function getCtx(id){ var cv=document.getElementById(id); var c=cv.getContext('2d'); c.save(); c.setTransform(1,0,0,1,0,0); c.clearRect(0,0,cv.width,cv.height); c.restore(); return c; }
+  function axis(c,W,H,p){ c.strokeStyle="#94a3b8"; c.beginPath(); c.moveTo(p,H-p); c.lineTo(W-p,H-p); c.moveTo(p,H-p); c.lineTo(p,p); c.stroke(); }
+  function bar(id, labels, data){ var c=getCtx(id), W=c.canvas.width, H=c.canvas.height, pad=40, bw=Math.max(10,(W-2*pad)/Math.max(1,labels.length)-10); var max=Math.max.apply(null,[1].concat(data)); axis(c,W,H,pad); for (var i=0;i<data.length;i++){ var v=data[i]; var x=pad+10+i*(bw+10); var h=(H-2*pad)*(v/max); var y=H-pad-h; c.fillStyle=COLORS[i%COLORS.length]; c.fillRect(x,y,bw,h); c.fillStyle="#111827"; c.textAlign="center"; c.fillText(String(v), x+bw/2, y-4); c.save(); c.translate(x+bw/2, H-pad+12); c.rotate(-Math.PI/4); c.fillStyle="#334155"; c.fillText(labels[i],0,0); c.restore(); } }
+  function line(id, labels, data){ var c=getCtx(id), W=c.canvas.width, H=c.canvas.height, pad=40, max=Math.max.apply(null,[1].concat(data)); axis(c,W,H,pad); c.beginPath(); for (var i=0;i<data.length;i++){ var x=pad+i*(W-2*pad)/Math.max(1,labels.length-1); var y=H-pad-(H-2*pad)*(data[i]/max); if(i===0) c.moveTo(x,y); else c.lineTo(x,y);} c.strokeStyle="#2563eb"; c.lineWidth=2; c.stroke(); for (var j=0;j<data.length;j++){ var x2=pad+j*(W-2*pad)/Math.max(1,labels.length-1); var y2=H-pad-(H-2*pad)*(data[j]/max); c.beginPath(); c.arc(x2,y2,3,0,Math.PI*2); c.fillStyle="#2563eb"; c.fill(); c.save(); c.translate(x2, H-pad+12); c.rotate(-Math.PI/4); c.fillStyle="#334155"; c.fillText(labels[j],0,0); c.restore(); c.fillStyle="#111827"; c.textAlign="center"; c.fillText(String(data[j]), x2, y2-8); } }
+  function donut(id, labels, data){ var c=getCtx(id), W=c.canvas.width, H=c.canvas.height, cx=W/2, cy=H/2, r=Math.min(W,H)/3, r2=r*0.6; var total=0; for(var i=0;i<data.length;i++) total+=data[i]; if(!total) total=1; var start=-Math.PI/2; for (var j=0;j<data.length;j++){ var ang=(data[j]/total)*Math.PI*2; c.beginPath(); c.moveTo(cx,cy); c.arc(cx,cy,r,start,start+ang); c.closePath(); c.fillStyle=COLORS[j%COLORS.length]; c.fill(); start+=ang; } c.globalCompositeOperation="destination-out"; c.beginPath(); c.arc(cx,cy,r2,0,Math.PI*2); c.fill(); c.globalCompositeOperation="source-over"; var legend=document.getElementById('motifLegend'); legend.innerHTML=''; for (var k=0;k<labels.length;k++){ var div=document.createElement('div'); div.className='legend-item'; var sw=document.createElement('span'); sw.className='legend-swatch'; sw.style='width:10px;height:10px;border-radius:2px;display:inline-block;background:'+COLORS[k%COLORS.length]; div.appendChild(sw); var t=document.createElement('span'); t.textContent=labels[k]+' ('+data[k]+')'; div.appendChild(t); legend.appendChild(div); } }
+  function updateCharts(){
+    var data=filteredByYear(exclusions);
+    // Option "Inclure les dates futures"
+    var today=new Date(); today=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+    var allowFutureCharts = (document.getElementById('includeFutureCharts') && document.getElementById('includeFutureCharts').checked);
+    if (!allowFutureCharts){ var dd=[]; for(var __i=0;__i<data.length;__i++){ var _d=new Date(data[__i].date+'T00:00:00'); if(_d<=today) dd.push(data[__i]); } data = dd; }
+
+    // Motifs
+    var mc={}, i; for(i=0;i<data.length;i++){ mc[data[i].motif]=(mc[data[i].motif]||0)+1; }
+    var mLab=[],mVal=[],keys=Object.keys(mc); keys.sort(function(a,b){return mc[b]-mc[a];});
+    for(i=0;i<keys.length;i++){ mLab.push(keys[i]); mVal.push(mc[keys[i]]); }
+    donut('motifChart', mLab, mVal);
+
+    // Evolution
+    var dc={}; for(i=0;i<data.length;i++){ dc[data[i].date]=(dc[data[i].date]||0)+1; }
+    var dKeys=Object.keys(dc); dKeys.sort();
+    var dLab=[],dVal=[]; for(i=0;i<dKeys.length;i++){ dLab.push(new Date(dKeys[i]).toLocaleDateString('fr-FR')); dVal.push(dc[dKeys[i]]); }
+    line('timeChart', dLab, dVal);
+
+    // Par professeur
+    var pc={}; for(i=0;i<data.length;i++){ pc[data[i].professeur]=(pc[data[i].professeur]||0)+1; }
+    var pKeys=Object.keys(pc); pKeys.sort(function(a,b){ return pc[b]-pc[a]; }); pKeys=pKeys.slice(0,10);
+    var pLab=[],pVal=[]; for(i=0;i<pKeys.length;i++){ pLab.push(pKeys[i]); pVal.push(pc[pKeys[i]]); }
+    bar('professeurChart', pLab, pVal);
+  }
+
+  function updateDataTable(){
+    var tbody=document.getElementById('dataTableBody');
+    var s=(document.getElementById('searchFilter').value||'').toLowerCase();
+    var cls=document.getElementById('classFilter').value||'';
+    var mot=document.getElementById('motifFilterData').value||'';
+    var base=filteredByYear(exclusions);
+    var data=[];
+    for(var i=0;i<base.length;i++){
+      var e=base[i];
+      var matchSearch=!s || e.nomEleve.toLowerCase().indexOf(s)>-1 || e.professeur.toLowerCase().indexOf(s)>-1 || e.motif.toLowerCase().indexOf(s)>-1;
+      var matchClass = !cls || e.classe===cls;
+      var matchMotif = !mot || e.motif===mot;
+      if(matchSearch&&matchClass&&matchMotif) data.push(e);
+    }
+    data.sort(function(a,b){ return (new Date(b.date+'T'+b.heure)) - (new Date(a.date+'T'+a.heure)); });
+    var html='';
+    for(var j=0;j<data.length;j++){
+      var ex=data[j];
+      html+='<tr><td>'+ex.anneeScolaire+'</td><td>'+new Date(ex.date).toLocaleDateString('fr-FR')+'</td><td>'+ex.heure+'</td><td>'+ex.nomEleve+'</td><td>'+ex.classe+'</td><td>'+ex.motif+'</td><td>'+ex.professeur+'</td><td><button class="btn btn-danger" onclick="del('+ex.id+')">🗑️</button></td></tr>';
+    }
+    tbody.innerHTML=html;
+  }
+  function del(id){
+    if(!confirm('Supprimer cette exclusion ?')) return;
+    var ts=null, idx=-1;
+    for(var j=0;j<exclusions.length;j++){ if(exclusions[j].id===id){ idx=j; ts=exclusions[j].timestamp; break; } }
+    if(idx>-1){ exclusions.splice(idx,1); persist(); }
+    updateAll(); if(ts){ syncDelete([ts]); }
+  }
+  function updateClassFilter(){
+    var sel=document.getElementById('classFilter'); var set={}, i; var base=filteredByYear(exclusions);
+    for(i=0;i<base.length;i++){ set[base[i].classe]=1; }
+    var arr=Object.keys(set).sort(); sel.innerHTML='<option value=\"\">Toutes</option>';
+    for(i=0;i<arr.length;i++){ var o=document.createElement('option'); o.value=arr[i]; o.textContent=arr[i]; sel.appendChild(o); }
+  }
+  function updateMotifFilter(){
+    var sel=document.getElementById('motifFilterData'); sel.innerHTML='<option value=\"\">Tous</option>';
+    for(var i=0;i<motifs.length;i++){ var o=document.createElement('option'); o.value=motifs[i]; o.textContent=motifs[i]; sel.appendChild(o); }
+  }
+
+  function exportData(){
+    var base=filteredByYear(exclusions);
+    var blob=new Blob([JSON.stringify(base,null,2)],{type:'application/json'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='exclusions_'+anneeCourante+'.json'; a.click();
+  }
+  function exportCSV(){
+    var base=filteredByYear(exclusions);
+    var headers=['timestamp','anneeScolaire','date','heure','eleve','classe','motif','professeur','matiere','commentaire'];
+    var lines=[headers.join(',')];
+    for(var i=0;i<base.length;i++){
+      var r=base[i];
+      var row=[
+        safeCSV(r.timestamp), safeCSV(r.anneeScolaire), safeCSV(r.date), safeCSV(r.heure),
+        safeCSV(r.nomEleve), safeCSV(r.classe), safeCSV(r.motif), safeCSV(r.professeur),
+        safeCSV(r.matiere), safeCSV(r.commentaire)
+      ];
+      lines.push(row.join(','));
+    }
+    var blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='exclusions_'+anneeCourante+'.csv'; a.click();
+  }
+  function safeCSV(v){ if(v==null) v=''; v=String(v); if(/[\",\n]/.test(v)) return '\"'+v.replace(/\"/g,'\"\"')+'\"'; return v; }
+
+  function resetYear(){
+    if(!confirm('⚠️ Supprimer toutes les données de '+anneeCourante+' ?')) return;
+    var kept=[]; var tsToDelete=[];
+    for(var i=0;i<exclusions.length;i++){ if(exclusions[i].anneeScolaire!==anneeCourante){ kept.push(exclusions[i]); } else { tsToDelete.push(exclusions[i].timestamp); } }
+    exclusions=kept; persist(); updateAll(); alert('Année '+anneeCourante+' vidée localement.'); syncClearYear(anneeCourante);
+  }
+
+  function updateAll(){ ensureYearsInSelector(); updateDataTable(); updateStatistics(); updateCharts(); updateClassFilter(); updateMotifFilter(); }
+
+  // Endpoint Apps Script
+  function saveWebAppUrl(){ var url=getVal('webAppUrl'); localStorage.setItem('webAppUrl', url); updateEndpointStatus(); }
+  function getWebAppUrl(){ var u=localStorage.getItem('webAppUrl')||''; return u.trim(); }
+  function updateEndpointStatus(){
+    var url=getWebAppUrl();
+    var dot=document.getElementById('syncIndicator'); var txt=document.getElementById('syncStatus');
+    var ok=!!url; txt.textContent='Endpoint: '+(ok?'Configuré':'Non configuré');
+    if(ok) dot.classList.add('connected'); else dot.classList.remove('connected');
+  }
+
+  // ★★★ CORS-safe pour GitHub Pages : fetch(..., mode:'no-cors') ★★★
+  function syncToEndpoint(payload){
+    var url=getWebAppUrl(); if(!url){ updateEndpointStatus(); return; }
+    fetch(url, {
+      method:'POST',
+      mode:'no-cors',
+      headers:{'Content-Type':'text/plain;charset=UTF-8'},
+      body: JSON.stringify(payload)
+    }).then(function(){
+      var s = document.getElementById('syncStatus'); if(s) s.textContent='Endpoint: envoyé (no-cors)';
+      var i = document.getElementById('syncIndicator'); if(i) i.classList.add('connected');
+    }).catch(function(err){
+      var s = document.getElementById('syncStatus'); if(s) s.textContent='Endpoint: Erreur — '+err.message;
+      var i = document.getElementById('syncIndicator'); if(i) i.classList.remove('connected');
+    });
+  }
+  function testSync(){ syncToEndpoint({action:'append', exclusions: filteredByYear(exclusions)}); }
+  function syncAppend(items){ for(var i=0;i<items.length;i++){ if(!items[i].anneeScolaire) items[i].anneeScolaire = computeAnneeScolaireFromDateStr(items[i].date); } syncToEndpoint({action:'append', exclusions: items}); }
+  function syncDelete(timestamps){ syncToEndpoint({action:'delete', timestamps: timestamps}); }
+  function syncClear(){ syncToEndpoint({action:'clear'}); }
+  function syncClearYear(year){ syncToEndpoint({action:'clearYear', year: year}); }
+
+  // Init
+  (function(){
+    loadMotifs(); setDefaultDateTime(); ensureYearsInSelector(); updateAll();
+    var web=document.getElementById('webAppUrl'); if(web) web.value=getWebAppUrl();
+    updateEndpointStatus();
+    var sf=document.getElementById('searchFilter'), cf=document.getElementById('classFilter'), mf=document.getElementById('motifFilterData');
+    if (sf) sf.addEventListener('input', updateDataTable);
+    if (cf) cf.addEventListener('change', updateDataTable);
+    if (mf) mf.addEventListener('change', updateDataTable);
+  })();
+</script>
+</body>
+</html>
